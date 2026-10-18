@@ -2,32 +2,18 @@ name: cpu-bot
 
 on:
   workflow_dispatch:
-    inputs:
-      task:
-        description: "Which task to run"
-        type: choice
-        required: true
-        default: smoke
-        options:
-          - smoke
-          - audit
-          - test-tts
-          - test-chat
-          - test-vision
-          - test-voice-cloning
-          - run-bot
 
 permissions:
   contents: read
 
 concurrency:
-  group: cpu-bot-${{ github.event.inputs.task }}
+  group: cpu-bot
   cancel-in-progress: false
 
 jobs:
-  run:
+  run-bot:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 350
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -38,7 +24,7 @@ jobs:
           python-version: "3.12"
           cache: pip
 
-      - name: System packages
+      - name: Install system packages
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg espeak-ng
@@ -48,55 +34,16 @@ jobs:
           python -m pip install --upgrade pip
           pip install torch --index-url https://download.pytorch.org/whl/cpu
 
-      - name: Install base requirements
+      - name: Install Python requirements
         run: pip install -r requirements.txt
 
-      - name: Report system
+      - name: System report
         run: |
           df -h /
           free -h
           nproc
 
-      - name: Smoke test
-        if: inputs.task == 'smoke'
-        run: |
-          python -c "import torch, numpy, sys; print('torch', torch.__version__, 'cuda', torch.cuda.is_available(), 'numpy', numpy.__version__)"
-          python -c "from models import REGISTRY; print(f'{len(REGISTRY)} models in registry')"
-          python -c "from config import Settings; Settings.load(); print('config ok')"
-
-      - name: Audit
-        if: inputs.task == 'audit'
-        run: python scripts/test_models.py --audit
-
-      - name: Test TTS
-        if: inputs.task == 'test-tts'
-        run: python scripts/test_models.py --category tts --out runtime/reports
-
-      - name: Test Chat
-        if: inputs.task == 'test-chat'
-        run: python scripts/test_models.py --category chat --out runtime/reports
-
-      - name: Test Vision
-        if: inputs.task == 'test-vision'
-        run: |
-          pip install "transformers>=4.49" qwen-vl-utils "torchvision>=0.19"
-          python scripts/test_models.py --category vision --out runtime/reports
-
-      - name: Test Voice Cloning
-        if: inputs.task == 'test-voice-cloning'
-        run: python scripts/test_models.py --category voice_cloning --out runtime/reports
-
-      - name: Upload artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: cpu-bot-output-${{ inputs.task }}
-          path: runtime/reports/
-          retention-days: 7
-          if-no-files-found: ignore
-
       - name: Run Telegram bot
-        if: inputs.task == 'run-bot'
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
@@ -109,4 +56,4 @@ jobs:
             echo "::error::TELEGRAM_BOT_TOKEN repository secret is not set."
             exit 1
           fi
-          timeout 3300 python bot.py || true
+          python bot.py
