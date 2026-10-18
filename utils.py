@@ -339,18 +339,36 @@ async def deliver_voice(bot: Bot, chat_id: int, audio_path: Path, title: str,
                         settings: Settings,
                         status_message: Message | None = None) -> None:
     max_bytes = settings.max_upload_mb * 1024 * 1024
+    
+    # 1. Pehle OGG mein convert karo
     ogg = to_ogg_opus(audio_path, audio_path.with_suffix(".ogg"),
                       ffmpeg_bin=settings.ffmpeg_bin)
-    parts = split_wav(ogg, audio_path.parent, max_bytes)
-    for i, part in enumerate(parts, start=1):
-        with part.open("rb") as fh:
-            await _retry(lambda fh=fh, i=i: bot.send_voice(
+    
+    # 2. Agar OGG file size limit ke andar hai, seedha bhej do
+    if ogg.stat().st_size <= max_bytes:
+        with ogg.open("rb") as fh:
+            await _retry(lambda fh=fh: bot.send_voice(
                 chat_id=chat_id, voice=fh,
-                caption=_caption(title, i, len(parts)),
+                caption=title,
                 read_timeout=180, write_timeout=180,
             ))
-        if status_message is not None and len(parts) > 1:
-            await status_message.edit_text(f"Sending {i}/{len(parts)}")
+        return
+        
+    # 3. Agar limit se bada hai, toh ORIGINAL WAV ko split karo
+    parts = split_wav(audio_path, audio_path.parent, max_bytes)
+    total = len(parts)
+    
+    for i, part in enumerate(parts, start=1):
+        # Har WAV chunk ko OGG mein convert karo
+        part_ogg = to_ogg_opus(part, part.with_suffix(".ogg"), ffmpeg_bin=settings.ffmpeg_bin)
+        with part_ogg.open("rb") as fh:
+            await _retry(lambda fh=fh, i=i: bot.send_voice(
+                chat_id=chat_id, voice=fh,
+                caption=_caption(title, i, total),
+                read_timeout=180, write_timeout=180,
+            ))
+        if status_message is not None and total > 1:
+            await status_message.edit_text(f"Sending part {i}/{total}…")
 
 
 async def deliver_document(bot: Bot, chat_id: int, path: Path,
