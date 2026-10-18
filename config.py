@@ -17,10 +17,12 @@ def _env(name, default=None):
     return value or default
 
 
-def _env_int(name, default, lo=None, hi=None):
+def _env_int(name, default=None, lo=None, hi=None):
     raw = _env(name)
+    if raw is None:
+        return default
     try:
-        value = int(raw) if raw is not None else int(default)
+        value = int(raw)
     except (TypeError, ValueError):
         raise ConfigError(f"{name} must be an integer")
     if lo is not None and value < lo:
@@ -33,6 +35,7 @@ def _env_int(name, default, lo=None, hi=None):
 @dataclass(frozen=True)
 class Settings:
     bot_token: str | None
+    owner_chat_id: int | None  # <-- Naya field add kiya
     hf_token: str | None
     cpu_threads: int
     max_upload_mb: int
@@ -56,6 +59,7 @@ class Settings:
         cpu_default = max(1, min(4, os.cpu_count() or 1))
         return cls(
             bot_token=_env("TELEGRAM_BOT_TOKEN"),
+            owner_chat_id=_env_int("OWNER_CHAT_ID", None, 1), # <-- Yahan read kiya
             hf_token=_env("HF_TOKEN"),
             cpu_threads=_env_int("CPU_THREADS", cpu_default, 1, os.cpu_count() or 1),
             max_upload_mb=_env_int("MAX_UPLOAD_MB", 45, 1, 2000),
