@@ -35,7 +35,7 @@ def _env_int(name, default=None, lo=None, hi=None):
 @dataclass(frozen=True)
 class Settings:
     bot_token: str | None
-    owner_chat_id: int | None  # <-- Naya field add kiya
+    owner_chat_id: int | None
     hf_token: str | None
     cpu_threads: int
     max_upload_mb: int
@@ -56,12 +56,19 @@ class Settings:
         base = Path(__file__).resolve().parent
         data = Path(_env("BOT_DATA_DIR") or (base / "runtime")).resolve()
         data.mkdir(parents=True, exist_ok=True)
-        cpu_default = max(1, min(4, os.cpu_count() or 1))
+
+        # Use every core the runner exposes. On GitHub free runners that's
+        # typically 4. Users can override with CPU_THREADS, but not more than
+        # 2x the physical count to avoid blowing up shared infrastructure.
+        detected = max(1, os.cpu_count() or 1)
+        hard_cap = max(2, detected * 2)
+        cpu_threads = _env_int("CPU_THREADS", detected, 1, hard_cap)
+
         return cls(
             bot_token=_env("TELEGRAM_BOT_TOKEN"),
-            owner_chat_id=_env_int("OWNER_CHAT_ID", None, 1), # <-- Yahan read kiya
+            owner_chat_id=_env_int("OWNER_CHAT_ID", None, 1),
             hf_token=_env("HF_TOKEN"),
-            cpu_threads=_env_int("CPU_THREADS", cpu_default, 1, os.cpu_count() or 1),
+            cpu_threads=cpu_threads,
             max_upload_mb=_env_int("MAX_UPLOAD_MB", 45, 1, 2000),
             max_input_chars=_env_int("MAX_INPUT_CHARS", 1500, 50, 10000),
             max_photo_mb=_env_int("MAX_PHOTO_MB", 10, 1, 50),
