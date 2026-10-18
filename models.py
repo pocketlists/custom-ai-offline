@@ -226,18 +226,63 @@ def _verify_wav(path, min_sec=0.3):
     return duration
 
 
-def _coerce_audio(item):
-    values = item if isinstance(item, (tuple, list)) else (item,)
-    audio = next((v for v in values
-                  if hasattr(v, "detach") or isinstance(v, np.ndarray)), None)
-    if audio is None:
-        raise ModelError("TTS returned unexpected output shape")
-    if hasattr(audio, "detach"):
-        audio = audio.detach().cpu().numpy()
-    array = np.asarray(audio, dtype=np.float32).reshape(-1)
+def _to_numpy(value):
+    """Convert a value to a 1-D float32 numpy array, or return None if not audio-like."""
+    if value is None:
+        return None
+    if hasattr(value, "detach"):
+        value = value.detach().cpu().numpy()
+    if not isinstance(value, np.ndarray):
+        return None
+    array = np.asarray(value, dtype=np.float32).reshape(-1)
     if array.size == 0 or not np.all(np.isfinite(array)):
-        raise ModelError("TTS returned invalid audio samples")
+        return None
     return array
+
+
+def _coerce_audio(item):
+    """
+    Kokoro (and similar TTS pipelines) can yield audio in several shapes:
+      - A dataclass/namedtuple with `.audio` (Kokoro 0.9.4+ uses a dataclass)
+      - A plain tuple `(graphemes, phonemes, audio_tensor)`
+      - A dict with an "audio" key
+      - A raw tensor/ndarray
+    This helper picks the first valid audio payload it can find.
+    """
+    # 1. Object with `.audio` attribute (dataclass or namedtuple)
+    audio_attr = getattr(item, "audio", None)
+    if audio_attr is not None:
+        array = _to_numpy(audio_attr)
+        if array is not None:
+            return array
+        # Batched audio (list/tuple of tensors)
+        if isinstance(audio_attr, (list, tuple)):
+            parts = [p for p in (_to_numpy(v) for v in audio_attr) if p is not None]
+            if parts:
+                return np.concatenate(parts)
+
+    # 2. Dict with "audio" key
+    if isinstance(item, dict) and "audio" in item:
+        array = _to_numpy(item["audio"])
+        if array is not None:
+            return array
+
+    # 3. Direct tensor/ndarray
+    array = _to_numpy(item)
+    if array is not None:
+        return array
+
+    # 4. Tuple/list — scan each element
+    if isinstance(item, (tuple, list)):
+        for value in item:
+            array = _to_numpy(value)
+            if array is not None:
+                return array
+
+    raise ModelError(
+        f"TTS returned unexpected output type: {type(item).__name__} "
+        f"(attrs sample: {[a for a in dir(item) if not a.startswith('_')][:6]})"
+    )
 
 
 def _split_text(text, max_chars=420):
@@ -273,12 +318,6 @@ _LOAD_LOCK = threading.Lock()
 
 
 class ModelManager:
-    """
-    Only ONE large model is loaded at a time. Models are downloaded lazily
-    on first use and released after the task ends. This avoids loading every
-    model into RAM simultaneously on a 15 GiB runner.
-    """
-
     def __init__(self, settings: Settings):
         self.settings = settings
         self._active_key: str | None = None
@@ -380,6 +419,8 @@ class KokoroBackend:
             try:
                 for item in pipeline(chunk, voice=voice, speed=speed, split_pattern=r"\n+"):
                     audio_parts.append(_coerce_audio(item))
+            except ModelError:
+                raise
             except Exception as exc:
                 raise ModelError(f"Kokoro failed on chunk {idx + 1}: {exc}") from exc
         if not audio_parts:
@@ -455,9 +496,7 @@ class ChatBackend:
             import torch
             from transformers import AutoModelForCausalLM, AutoTokenizer
         except ImportError as exc:
-            raise DependencyMissing(
-                f"transformers/torch missing ({exc})"
-            ) from exc
+            raise DependencyMissing(f"transformers/torch missing ({exc})") from exc
         torch.set_num_threads(self.settings.cpu_threads)
         try:
             self._tokenizer = AutoTokenizer.from_pretrained(
@@ -566,7 +605,11 @@ class VisionBackend:
                 padding=True, return_tensors="pt")
             with self._torch.inference_mode():
                 generated = self._model.generate(**inputs, max_new_tokens=max_new_tokens)
-            trimmed = [o[len(i):] for i, o in zip(inputs.input_ids, generated)]
+            input_ids = inputs["input_ids"]
+            trimmed = []
+            for i in range(generated.shape[0]):
+                prompt_len = int(input_ids[i].shape[-1])
+                trimmed.append(generated[i][prompt_len:])
             answer = self._processor.batch_decode(trimmed, skip_special_tokens=True)[0].strip()
         except Exception as exc:
             raise ModelError(f"Vision inference failed: {exc}") from exc
