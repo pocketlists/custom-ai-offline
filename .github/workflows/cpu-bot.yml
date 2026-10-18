@@ -1,8 +1,6 @@
 name: cpu-bot
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
     inputs:
       task:
@@ -12,18 +10,18 @@ on:
         default: smoke
         options:
           - smoke
+          - audit
           - test-tts
           - test-chat
           - test-vision
           - test-voice-cloning
-          - audit
           - run-bot
 
 permissions:
   contents: read
 
 concurrency:
-  group: cpu-bot-${{ github.event.inputs.task || 'smoke' }}
+  group: cpu-bot-${{ github.event.inputs.task }}
   cancel-in-progress: false
 
 jobs:
@@ -53,14 +51,14 @@ jobs:
       - name: Install base requirements
         run: pip install -r requirements.txt
 
-      - name: Free disk + RAM report
+      - name: Report system
         run: |
           df -h /
           free -h
           nproc
 
       - name: Smoke test
-        if: inputs.task == 'smoke' || github.event_name == 'push'
+        if: inputs.task == 'smoke'
         run: |
           python -c "import torch, numpy, sys; print('torch', torch.__version__, 'cuda', torch.cuda.is_available(), 'numpy', numpy.__version__)"
           python -c "from models import REGISTRY; print(f'{len(REGISTRY)} models in registry')"
@@ -88,11 +86,11 @@ jobs:
         if: inputs.task == 'test-voice-cloning'
         run: python scripts/test_models.py --category voice_cloning --out runtime/reports
 
-      - name: Upload reports and audio artifacts
+      - name: Upload artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: cpu-bot-output-${{ inputs.task || 'push' }}
+          name: cpu-bot-output-${{ inputs.task }}
           path: runtime/reports/
           retention-days: 7
           if-no-files-found: ignore
