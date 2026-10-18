@@ -39,15 +39,15 @@ jobs:
 
       - name: System report
         run: |
+          echo "CPU cores: $(nproc)"
           df -h /
           free -h
-          nproc
 
       - name: Run Telegram bot
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          OWNER_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-          CPU_THREADS: "2"
           MAX_UPLOAD_MB: "45"
           QUEUE_SIZE: "4"
           LOG_LEVEL: INFO
