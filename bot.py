@@ -80,21 +80,14 @@ def _back(target: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data=target)]])
 
 
-# -------------------------------------------------------------
-# SECURITY: OWNER ONLY DECORATOR
-# -------------------------------------------------------------
 def owner_only(func):
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
         state: BotState = context.application.bot_data["state"]
-        
-        # Agar OWNER_CHAT_ID set hai, toh sirf owner ko allow karo
         if state.settings.owner_chat_id is not None:
             user_id = update.effective_user.id if update.effective_user else None
             if user_id != state.settings.owner_chat_id:
                 if update.message:
-                    await update.message.reply_text(
-                        "🔒 This is a private bot. You are not authorized to use it."
-                    )
+                    await update.message.reply_text("🔒 This is a private bot. You are not authorized.")
                 elif update.callback_query:
                     await update.callback_query.answer("🔒 Unauthorized", show_alert=True)
                 return
@@ -102,14 +95,10 @@ def owner_only(func):
     return wrapper
 
 
-# -------------------------------------------------------------
-# HANDLERS (Decorated with @owner_only)
-# -------------------------------------------------------------
 @owner_only
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "*CPU AI Bot*\n\n"
-        "Runs entirely on CPU. No GPU, no paid APIs.\n\n"
+        "*CPU AI Bot*\n\nRuns entirely on CPU. No GPU, no paid APIs.\n\n"
         "Pick a category below. Use /help for commands and /status for system info.",
         reply_markup=_menu(), parse_mode=ParseMode.MARKDOWN)
 
@@ -117,22 +106,11 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @owner_only
 async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "*Commands*\n"
-        "/start — main menu\n"
-        "/help — this message\n"
-        "/status — CPU, RAM and active model\n"
-        "/models — model menu\n"
-        "/cancel — cancel the current task\n"
-        "/reset — clear chat history and session\n"
-        "/about — about the project\n\n"
-        "*How it works*\n"
-        "1. Pick a category.\n"
-        "2. Pick a model.\n"
-        "3. Send text / photo / voice.\n\n"
-        "*TTS format:* `lang:voice text` (e.g. `hi:hf_alpha नमस्ते`). "
-        "Plain text uses defaults.\n"
-        "*Voice cloning:* send a 2–30s voice sample, then /confirm_voice, "
-        "then the text to speak. Only works if OpenVoice checkpoints are configured.",
+        "*Commands*\n/start — main menu\n/help — this message\n/status — CPU, RAM and active model\n"
+        "/models — model menu\n/cancel — cancel the current task\n/reset — clear chat history and session\n"
+        "/about — about the project\n\n*How it works*\n1. Pick a category.\n2. Pick a model.\n3. Send text / photo / voice.\n\n"
+        "*TTS format:* `lang:voice text`. Plain text uses defaults.\n"
+        "*Voice cloning:* send a 2–30s voice sample, then /confirm_voice, then the text.",
         parse_mode=ParseMode.MARKDOWN)
 
 
@@ -141,26 +119,17 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     state: BotState = context.application.bot_data["state"]
     snap = system_snapshot(state.settings.data_dir)
     await update.message.reply_text(
-        f"*System*\n"
-        f"Platform: `{snap['platform']}`\n"
-        f"Python: `{snap['python']}`\n"
-        f"CPUs: `{snap['cpu_count']}`\n"
-        f"RAM free: `{snap['ram_free_gb']} / {snap['ram_total_gb']} GB`\n"
-        f"Disk free: `{snap['disk_free_gb']} GB`\n"
-        f"PyTorch: `{snap['torch']}`\n"
-        f"CUDA: `{snap['cuda']}`\n"
-        f"ffmpeg: `{snap['ffmpeg']}`\n\n"
-        f"*Bot*\n"
-        f"Active model: `{state.models.active_key or 'none'}`\n"
-        f"Queue: `{state.queue.size}` jobs\n"
+        f"*System*\nPlatform: `{snap['platform']}`\nPython: `{snap['python']}`\nCPUs: `{snap['cpu_count']}`\n"
+        f"RAM free: `{snap['ram_free_gb']} / {snap['ram_total_gb']} GB`\nDisk free: `{snap['disk_free_gb']} GB`\n"
+        f"PyTorch: `{snap['torch']}`\nCUDA: `{snap['cuda']}`\nffmpeg: `{snap['ffmpeg']}`\n\n"
+        f"*Bot*\nActive model: `{state.models.active_key or 'none'}`\nQueue: `{state.queue.size}` jobs\n"
         f"Max upload: `{state.settings.max_upload_mb} MB`",
         parse_mode=ParseMode.MARKDOWN)
 
 
 @owner_only
 async def cmd_models(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("*Pick a category*", reply_markup=_menu(),
-                                    parse_mode=ParseMode.MARKDOWN)
+    await update.message.reply_text("*Pick a category*", reply_markup=_menu(), parse_mode=ParseMode.MARKDOWN)
 
 
 @owner_only
@@ -186,13 +155,9 @@ async def cmd_reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @owner_only
 async def cmd_about(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "*CPU AI Bot*\n\n"
-        "A Telegram bot that runs AI models on CPU only. No GPU and no paid APIs.\n\n"
-        "Models are downloaded on first use and unloaded after each task — only "
-        "one heavy model is in memory at a time, so it fits low-memory runners.\n\n"
-        "The bot is hosted on GitHub Actions: it is online only while the workflow "
-        "is running. For always-on hosting use a VPS or dedicated server.\n\n"
-        "Source: this public repository.",
+        "*CPU AI Bot*\n\nA Telegram bot that runs AI models on CPU only. No GPU and no paid APIs.\n\n"
+        "Models are downloaded on first use and unloaded after each task — only one heavy model is in memory at a time.\n\n"
+        "The bot is hosted on GitHub Actions: it is online only while the workflow is running.",
         parse_mode=ParseMode.MARKDOWN)
 
 
@@ -204,8 +169,7 @@ async def cmd_confirm_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Send a voice sample first (2–30s).")
         return
     sel["confirmed"] = True
-    await update.message.reply_text(
-        "Permission noted. Now send the text you want spoken in the cloned voice.")
+    await update.message.reply_text("Permission noted. Now send the text you want spoken in the cloned voice.")
 
 
 @owner_only
@@ -217,24 +181,19 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = query.from_user.id
 
     if data == "cmd:menu":
-        await query.message.edit_text("*Main menu*", reply_markup=_menu(),
-                                       parse_mode=ParseMode.MARKDOWN)
+        await query.message.edit_text("*Main menu*", reply_markup=_menu(), parse_mode=ParseMode.MARKDOWN)
         return
     if data == "cmd:status":
         snap = system_snapshot(state.settings.data_dir)
         await query.message.edit_text(
-            f"*Status*\nRAM free: `{snap['ram_free_gb']} GB`\n"
-            f"Disk free: `{snap['disk_free_gb']} GB`\n"
-            f"Active model: `{state.models.active_key or 'none'}`\n"
-            f"Queue: `{state.queue.size}`",
+            f"*Status*\nRAM free: `{snap['ram_free_gb']} GB`\nDisk free: `{snap['disk_free_gb']} GB`\n"
+            f"Active model: `{state.models.active_key or 'none'}`\nQueue: `{state.queue.size}`",
             parse_mode=ParseMode.MARKDOWN, reply_markup=_back("cmd:menu"))
         return
     if data == "cmd:settings":
         await query.message.edit_text(
-            f"*Settings*\nMax upload: `{state.settings.max_upload_mb} MB`\n"
-            f"CPU threads: `{state.settings.cpu_threads}`\n"
-            f"Max input: `{state.settings.max_input_chars}` chars\n"
-            f"Queue size: `{state.settings.queue_size}`",
+            f"*Settings*\nMax upload: `{state.settings.max_upload_mb} MB`\nCPU threads: `{state.settings.cpu_threads}`\n"
+            f"Max input: `{state.settings.max_input_chars}` chars\nQueue size: `{state.settings.queue_size}`",
             parse_mode=ParseMode.MARKDOWN, reply_markup=_back("cmd:menu"))
         return
     if data == "cmd:cancel":
@@ -254,26 +213,15 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data.startswith("sel:"):
         _, cat_value, key = data.split(":", 2)
         spec = get_spec(key)
-        if spec.status in {ModelStatus.NEEDS_VERIFICATION,
-                            ModelStatus.TOO_LARGE,
-                            ModelStatus.TOO_SLOW}:
+        if spec.status in {ModelStatus.NEEDS_VERIFICATION, ModelStatus.TOO_LARGE, ModelStatus.TOO_SLOW}:
             await query.message.edit_text(
-                f"⚠️ *{spec.display_name}* is not available.\n\n"
-                f"Status: `{spec.status.value}`\n"
-                f"Notes: {spec.notes or 'no additional notes'}",
-                parse_mode=ParseMode.MARKDOWN,
-                reply_markup=_back(f"cat:{cat_value}"))
+                f"⚠️ *{spec.display_name}* is not available.\n\nStatus: `{spec.status.value}`\nNotes: {spec.notes or 'no additional notes'}",
+                parse_mode=ParseMode.MARKDOWN, reply_markup=_back(f"cat:{cat_value}"))
             return
-        state.selection[uid] = {
-            "category": cat_value, "model_key": key, "cancel_event": None,
-        }
+        state.selection[uid] = {"category": cat_value, "model_key": key, "cancel_event": None}
         await query.message.edit_text(
-            f"*{spec.display_name}* selected.\n\n"
-            f"License: `{spec.license}`\n"
-            f"Languages: `{', '.join(spec.languages) or 'unknown'}`\n"
-            f"Memory: {spec.memory_notes or 'n/a'}\n"
-            f"Download: ~{spec.download_size_mb or '?'} MB\n\n"
-            f"{_prompt_for(cat_value)}",
+            f"*{spec.display_name}* selected.\n\nLicense: `{spec.license}`\nLanguages: `{', '.join(spec.languages) or 'unknown'}`\n"
+            f"Memory: {spec.memory_notes or 'n/a'}\nDownload: ~{spec.download_size_mb or '?'} MB\n\n{_prompt_for(cat_value)}",
             parse_mode=ParseMode.MARKDOWN, reply_markup=_back("cmd:menu"))
         return
 
@@ -317,8 +265,7 @@ async def on_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         language, voice, body = _parse_tts_input(text, get_spec(key))
         job = Job(user_id=uid, chat_id=chat_id, kind="tts",
-                  payload={"model_key": key, "text": body,
-                           "language": language, "voice": voice},
+                  payload={"model_key": key, "text": body, "language": language, "voice": voice},
                   timeout=state.settings.job_timeout)
         await _submit(update, state, job, uid)
 
@@ -354,8 +301,7 @@ async def on_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         question = (update.message.caption or "").strip() or "Describe this image."
         job = Job(user_id=uid, chat_id=chat_id, kind="vision",
-                  payload={"model_key": key, "image_path": str(resized),
-                           "question": question},
+                  payload={"model_key": key, "image_path": str(resized), "question": question},
                   timeout=state.settings.job_timeout)
         await _submit(update, state, job, uid)
 
@@ -368,9 +314,7 @@ async def on_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             raw = tmp / unique_name("ref", ".ogg")
             await f.download_to_drive(str(raw))
             try:
-                duration = validate_audio(
-                    raw, state.settings.max_reference_audio_mb,
-                    state.settings.max_reference_audio_seconds)
+                duration = validate_audio(raw, state.settings.max_reference_audio_mb, state.settings.max_reference_audio_seconds)
             except Exception as exc:
                 raw.unlink(missing_ok=True)
                 await update.message.reply_text(f"⚠️ {exc}")
@@ -382,18 +326,14 @@ async def on_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 raw.unlink(missing_ok=True)
             sel["reference_path"] = str(wav)
             sel["confirmed"] = False
-            await update.message.reply_text(
-                f"✅ Reference accepted ({duration:.1f}s). "
-                "Run /confirm_voice to confirm permission, then send the text.")
+            await update.message.reply_text(f"✅ Reference accepted ({duration:.1f}s). Run /confirm_voice to confirm permission, then send the text.")
             return
         if update.message.text:
             if not sel.get("reference_path"):
                 await update.message.reply_text("Send a voice sample first (2–30s).")
                 return
             if not sel.get("confirmed"):
-                await update.message.reply_text(
-                    "Please run /confirm_voice first to confirm you have "
-                    "permission to clone this voice.")
+                await update.message.reply_text("Please run /confirm_voice first to confirm you have permission.")
                 return
             try:
                 text = validate_text(update.message.text, state.settings.max_input_chars)
@@ -401,8 +341,7 @@ async def on_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text(f"⚠️ {exc}")
                 return
             job = Job(user_id=uid, chat_id=chat_id, kind="voice_clone",
-                      payload={"model_key": key, "text": text,
-                               "reference_path": sel["reference_path"]},
+                      payload={"model_key": key, "text": text, "reference_path": sel["reference_path"]},
                       timeout=state.settings.job_timeout)
             await _submit(update, state, job, uid)
 
@@ -414,8 +353,7 @@ async def _submit(update: Update, state: BotState, job: Job, uid: int):
     if not ok:
         await update.message.reply_text("⚠️ Queue is full. Try again in a moment.")
         return
-    await update.message.reply_text(
-        f"⏳ Queued ({state.queue.size} in queue). Please wait…")
+    await update.message.reply_text(f"⏳ Queued ({state.queue.size} in queue). Please wait…")
 
 
 async def _do_tts(job: Job, state: BotState):
@@ -429,15 +367,17 @@ async def _do_tts(job: Job, state: BotState):
         out_dir = state.settings.data_dir / "out"
         out_dir.mkdir(parents=True, exist_ok=True)
         out_path = out_dir / unique_name("tts", ".wav")
-        result = backend.synthesize(
-            job.payload["text"], out_path,
-            language=job.payload.get("language", "en"),
-            voice=job.payload.get("voice"))
+        kwargs = {
+            "language": job.payload.get("language", "hi"),
+            "voice": job.payload.get("voice"),
+        }
+        if spec.key == "indic-parler-tts":
+            kwargs["description"] = job.payload.get("description") or "A clear Hindi voice, moderate pace, no background noise."
+        
+        result = backend.synthesize(job.payload["text"], out_path, **kwargs)
         await status.edit_text("📤 Sending audio…")
-        await deliver_voice(bot, job.chat_id, out_path, spec.display_name,
-                            state.settings, status)
-        await status.edit_text(
-            f"✅ Done. {result['duration']:.1f}s audio in {result['elapsed']:.1f}s.")
+        await deliver_voice(bot, job.chat_id, out_path, spec.display_name, state.settings, status)
+        await status.edit_text(f"✅ Done. {result['duration']:.1f}s audio in {result['elapsed']:.1f}s.")
     except Exception as exc:
         await status.edit_text(f"❌ TTS failed: {exc}")
     finally:
@@ -454,13 +394,12 @@ async def _do_chat(job: Job, state: BotState):
         await status.edit_text("💭 Thinking…")
         history = state.history.setdefault(job.user_id, [])
         history.append({"role": "user", "content": job.payload["text"]})
-        result = backend.generate(history[-6:],
-                                  max_new_tokens=job.payload.get("max_new_tokens", 200))
+        result = backend.generate(history[-6:], max_new_tokens=job.payload.get("max_new_tokens", 200))
         history.append({"role": "assistant", "content": result["text"]})
         state.history[job.user_id] = history[-12:]
         await status.edit_text(
-            f"{result['text']}\n\n_({result['completion_tokens']} tokens in "
-            f"{result['elapsed']:.1f}s)_", parse_mode=ParseMode.MARKDOWN)
+            f"{result['text']}\n\n_({result['completion_tokens']} tokens in {result['elapsed']:.1f}s)_",
+            parse_mode=ParseMode.MARKDOWN)
     except Exception as exc:
         await status.edit_text(f"❌ Chat failed: {exc}")
 
@@ -473,9 +412,7 @@ async def _do_vision(job: Job, state: BotState):
         backend = state.models.get(spec.key)
         await status.edit_text("👁️ Analyzing image…")
         result = backend.describe(job.payload["image_path"], job.payload["question"])
-        await status.edit_text(
-            f"{result['text']}\n\n_({result['elapsed']:.1f}s)_",
-            parse_mode=ParseMode.MARKDOWN)
+        await status.edit_text(f"{result['text']}\n\n_({result['elapsed']:.1f}s)_", parse_mode=ParseMode.MARKDOWN)
     except Exception as exc:
         await status.edit_text(f"❌ Vision failed: {exc}")
 
@@ -493,8 +430,7 @@ async def _do_voice_clone(job: Job, state: BotState):
         out_path = out_dir / unique_name("clone", ".wav")
         backend.clone(job.payload["text"], job.payload["reference_path"], out_path)
         await status.edit_text("📤 Sending cloned audio…")
-        await deliver_voice(bot, job.chat_id, out_path, "Cloned voice",
-                            state.settings, status)
+        await deliver_voice(bot, job.chat_id, out_path, "Cloned voice", state.settings, status)
         await status.edit_text("✅ Done.")
     except Exception as exc:
         await status.edit_text(f"❌ Voice cloning failed: {exc}")
@@ -511,10 +447,7 @@ async def _on_startup(app: Application):
     state.queue.register("vision", lambda job: _do_vision(job, state))
     state.queue.register("voice_clone", lambda job: _do_voice_clone(job, state))
     await state.queue.start()
-    logger.info("Bot started: cpu_threads=%s queue=%s",
-                state.settings.cpu_threads, state.settings.queue_size)
-
-    # OWNER KO PEHLA MESSAGE BHEJO
+    logger.info("Bot started: cpu_threads=%s queue=%s", state.settings.cpu_threads, state.settings.queue_size)
     if state.settings.owner_chat_id:
         try:
             await app.bot.send_message(
@@ -522,7 +455,6 @@ async def _on_startup(app: Application):
                 text="✅ *Bot is online!*\n\nServer ready hai. `/start` bhejo shuru karne ke liye.",
                 parse_mode=ParseMode.MARKDOWN
             )
-            logger.info("Startup notification sent to owner.")
         except Exception as exc:
             logger.warning("Could not send startup message to owner: %s", exc)
 
@@ -546,8 +478,7 @@ def build_app(settings: Settings) -> Application:
     app.add_handler(CommandHandler("about", cmd_about))
     app.add_handler(CommandHandler("confirm_voice", cmd_confirm_voice))
     app.add_handler(CallbackQueryHandler(on_callback))
-    app.add_handler(MessageHandler(
-        filters.TEXT | filters.PHOTO | filters.VOICE | filters.AUDIO, on_message))
+    app.add_handler(MessageHandler(filters.TEXT | filters.PHOTO | filters.VOICE | filters.AUDIO, on_message))
     app.post_init = _on_startup
     app.post_shutdown = _on_shutdown
     return app
@@ -558,8 +489,7 @@ def main():
     logging.basicConfig(
         level=getattr(logging, settings.log_level, logging.INFO),
         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-    for noisy in ("httpx", "telegram.ext.Application", "telegram.Bot",
-                  "huggingface_hub"):
+    for noisy in ("httpx", "telegram.ext.Application", "telegram.Bot", "huggingface_hub"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
     try:
         app = build_app(settings)
@@ -567,8 +497,7 @@ def main():
         logger.error("Configuration error: %s", exc)
         raise SystemExit(2)
     logger.info("Polling for updates…")
-    app.run_polling(allowed_updates=Update.ALL_TYPES,
-                    drop_pending_updates=True, close_loop=False)
+    app.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True, close_loop=False)
 
 
 if __name__ == "__main__":
