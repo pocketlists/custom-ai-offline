@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import gc
 import logging
-import re
-import subprocess
+import os
 import threading
 import time
 import wave
@@ -30,6 +29,7 @@ class ModelStatus(str, Enum):
 
 class Category(str, Enum):
     TTS = "tts"
+    STT = "stt"
     CHAT = "chat"
     VISION = "vision"
     VOICE_CLONING = "voice_cloning"
@@ -81,119 +81,223 @@ class ModelSpec:
 
 
 REGISTRY: dict[str, ModelSpec] = {
-    # ---------- Piper (Fast CPU) ----------
+    # ================= TTS =================
+    "kokoro": ModelSpec(
+        key="kokoro",
+        display_name="⭐ Kokoro-82M — Best Quality (EN + HI)",
+        category=Category.TTS,
+        repo_id="hexgrad/Kokoro-82M",
+        license="Apache-2.0",
+        dependencies=["kokoro-onnx", "onnxruntime"],
+        download_size_mb=340,
+        cpu_compatibility="excellent",
+        memory_notes="~400 MB RAM. CPU par real-time se bhi tez.",
+        languages=["en", "hi"],
+        notes="Sabse best CPU voice. EN voices: af_heart, af_bella, am_adam. "
+              "HI voices: hf_alpha, hf_beta, hm_alpha. Format: `en:am_adam text` ya `hi text`.",
+    ),
     "piper-hi-rohan": ModelSpec(
         key="piper-hi-rohan",
-        display_name="Piper Hindi (Rohan, Male)",
+        display_name="Piper Hindi — Rohan (Male) ⚡Fast",
         category=Category.TTS,
         repo_id="rhasspy/piper-voices",
         license="CC-BY-NC-SA-4.0 (Non-commercial)",
         dependencies=["piper-tts", "onnxruntime"],
         download_size_mb=60,
         cpu_compatibility="excellent",
-        memory_notes="~200 MB RAM. Faster than real-time on CPU.",
+        memory_notes="~200 MB RAM. Real-time se tez.",
         languages=["hi"],
-        status=ModelStatus.UNTESTED,
-        notes="Lightweight ONNX voice. Personal/research use only.",
+        notes="Halka ONNX voice. Personal/research use.",
     ),
     "piper-hi-priyamvada": ModelSpec(
         key="piper-hi-priyamvada",
-        display_name="Piper Hindi (Priyamvada, Female)",
+        display_name="Piper Hindi — Priyamvada (Female) ⚡Fast",
         category=Category.TTS,
         repo_id="rhasspy/piper-voices",
         license="CC-BY-NC-SA-4.0 (Non-commercial)",
         dependencies=["piper-tts", "onnxruntime"],
         download_size_mb=60,
         cpu_compatibility="excellent",
-        memory_notes="~200 MB RAM. Faster than real-time on CPU.",
+        memory_notes="~200 MB RAM. Real-time se tez.",
         languages=["hi"],
-        status=ModelStatus.UNTESTED,
-        notes="Lightweight ONNX voice. Personal/research use only.",
+        notes="Halka ONNX voice. Personal/research use.",
     ),
-    # ---------- Indic Parler-TTS (Heavy) ----------
+    "piper-hi-pratham": ModelSpec(
+        key="piper-hi-pratham",
+        display_name="Piper Hindi — Pratham (Male) ⚡Fast",
+        category=Category.TTS,
+        repo_id="rhasspy/piper-voices",
+        license="CC-BY-NC-SA-4.0 (Non-commercial)",
+        dependencies=["piper-tts", "onnxruntime"],
+        download_size_mb=60,
+        cpu_compatibility="excellent",
+        memory_notes="~200 MB RAM. Real-time se tez.",
+        languages=["hi"],
+        notes="Halka ONNX voice. Personal/research use.",
+    ),
+    "piper-en-amy": ModelSpec(
+        key="piper-en-amy",
+        display_name="Piper English — Amy (Female, US) ⚡Fast",
+        category=Category.TTS,
+        repo_id="rhasspy/piper-voices",
+        license="MIT-style (voice data varies)",
+        dependencies=["piper-tts", "onnxruntime"],
+        download_size_mb=60,
+        cpu_compatibility="excellent",
+        memory_notes="~200 MB RAM. Real-time se tez.",
+        languages=["en"],
+    ),
+    "piper-en-lessac": ModelSpec(
+        key="piper-en-lessac",
+        display_name="Piper English — Lessac (Female, US) ⚡Fast",
+        category=Category.TTS,
+        repo_id="rhasspy/piper-voices",
+        license="MIT-style (voice data varies)",
+        dependencies=["piper-tts", "onnxruntime"],
+        download_size_mb=60,
+        cpu_compatibility="excellent",
+        memory_notes="~200 MB RAM. Real-time se tez.",
+        languages=["en"],
+        notes="Amy se thodi zyada saaf awaaz.",
+    ),
+    "piper-en-alan": ModelSpec(
+        key="piper-en-alan",
+        display_name="Piper English — Alan (Male, UK) ⚡Fast",
+        category=Category.TTS,
+        repo_id="rhasspy/piper-voices",
+        license="MIT-style (voice data varies)",
+        dependencies=["piper-tts", "onnxruntime"],
+        download_size_mb=60,
+        cpu_compatibility="excellent",
+        memory_notes="~200 MB RAM. Real-time se tez.",
+        languages=["en"],
+    ),
+    "mms-hi": ModelSpec(
+        key="mms-hi",
+        display_name="MMS Hindi (Meta) — Natural",
+        category=Category.TTS,
+        repo_id="facebook/mms-tts-hin",
+        license="CC-BY-NC-4.0 (Non-commercial)",
+        dependencies=["transformers", "torch"],
+        download_size_mb=130,
+        cpu_compatibility="good",
+        memory_notes="~600 MB RAM. Ek line ke liye kuch seconds.",
+        languages=["hi"],
+        notes="Hindi text Devanagari me bhejo (जैसे: नमस्ते दुनिया). Roman Hindi par quality girti hai.",
+    ),
+    "mms-en": ModelSpec(
+        key="mms-en",
+        display_name="MMS English (Meta)",
+        category=Category.TTS,
+        repo_id="facebook/mms-tts-eng",
+        license="CC-BY-NC-4.0 (Non-commercial)",
+        dependencies=["transformers", "torch"],
+        download_size_mb=130,
+        cpu_compatibility="good",
+        memory_notes="~600 MB RAM.",
+        languages=["en"],
+    ),
     "indic-parler-tts": ModelSpec(
         key="indic-parler-tts",
-        display_name="Indic Parler-TTS (Hindi)",
+        display_name="Indic Parler-TTS (Hindi) 🐌 Heavy",
         category=Category.TTS,
         repo_id="ai4bharat/indic-parler-tts",
         license="Apache-2.0 (Verify model card)",
         dependencies=["transformers", "torch", "parler-tts"],
         download_size_mb=3800,
         cpu_compatibility="slow",
-        memory_notes="~4-6 GB RAM in float32. May take minutes per sentence on CPU.",
-        languages=["hi", "bn", "ta", "te", "kn", "ml", "mr", "gu", "pa", "or"],
+        memory_notes="~4-6 GB RAM float32. CPU par minutes per sentence.",
+        languages=["hi"],
         status=ModelStatus.TOO_SLOW,
         experimental=True,
-        notes="Gated model. Requires HF_TOKEN. Use voice description.",
+        notes="Gated model, HF_TOKEN chahiye. Menu me hidden hai (TOO_SLOW).",
     ),
-    # ---------- VoxCPM2 (Very Heavy) ----------
-    "voxcpm2": ModelSpec(
-        key="voxcpm2",
-        display_name="VoxCPM2 (Hindi)",
-        category=Category.TTS,
-        repo_id="openbmb/VoxCPM2",
-        license="Apache-2.0",
-        dependencies=["voxcpm", "torch", "soundfile"],
-        download_size_mb=8000,
-        cpu_compatibility="very_slow",
-        memory_notes="~8-10 GB RAM in float32. Several minutes per short phrase on CPU.",
-        languages=["hi", "en", "ta", "te", "bn", "gu", "kn", "ml", "mr", "pa", "or"],
-        status=ModelStatus.TOO_SLOW,
-        experimental=True,
-        notes="2B diffusion model. Real-time on GPU, not on 4-core CPU.",
+    # ================= STT (Voice -> Text) =================
+    "whisper-base": ModelSpec(
+        key="whisper-base",
+        display_name="Whisper Base ⚡Fast (HI + EN)",
+        category=Category.STT,
+        repo_id="Systran/faster-whisper-base",
+        license="MIT",
+        dependencies=["faster-whisper"],
+        download_size_mb=145,
+        cpu_compatibility="excellent",
+        memory_notes="~1 GB RAM (int8). Chhoti voice notes ke liye best.",
+        languages=["hi", "en"],
+        notes="Voice note bhejo, text ban jayega. Language auto-detect hota hai.",
     ),
-    # ---------- VEXYL-TTS (API Client) ----------
-    "vexyl-tts": ModelSpec(
-        key="vexyl-tts",
-        display_name="VEXYL-TTS (External Server)",
-        category=Category.TTS,
-        repo_id="vexyl-ai/vexyl-tts",
-        license="Apache-2.0",
-        dependencies=["requests"],
-        download_size_mb=0,
-        cpu_compatibility="unknown",
-        memory_notes="Requires externally hosted VEXYL-TTS server.",
-        languages=["hi", "ta", "te", "kn", "ml", "bn", "gu", "mr", "pa", "or"],
-        status=ModelStatus.NEEDS_VERIFICATION,
-        experimental=True,
-        notes="Client adapter only. Set VEXYL_TTS_URL env variable.",
+    "whisper-small": ModelSpec(
+        key="whisper-small",
+        display_name="⭐ Whisper Small — Zyada Accurate (HI + EN)",
+        category=Category.STT,
+        repo_id="Systran/faster-whisper-small",
+        license="MIT",
+        dependencies=["faster-whisper"],
+        download_size_mb=490,
+        cpu_compatibility="good",
+        memory_notes="~2 GB RAM (int8). Hindi par Base se clearly better.",
+        languages=["hi", "en"],
+        notes="Lambi ya saaf accuracy wali transcription ke liye.",
     ),
-    # ---------- Chat ----------
+    # ================= CHAT =================
     "qwen-chat-0.5b": ModelSpec(
-        key="qwen-chat-0.5b", display_name="Qwen2.5 0.5B Instruct",
+        key="qwen-chat-0.5b", display_name="Qwen2.5 0.5B ⚡Fast Chat",
         category=Category.CHAT, repo_id="Qwen/Qwen2.5-0.5B-Instruct",
         license="Apache-2.0", dependencies=["transformers", "torch", "accelerate"],
         download_size_mb=1000, cpu_compatibility="good",
-        memory_notes="~2 GB RAM in float32", languages=["en", "zh", "hi"],
-        status=ModelStatus.UNTESTED,
+        memory_notes="~1.5 GB RAM (int8 dynamic). Chhote sawal-jawab ke liye.",
+        languages=["en", "hi"],
     ),
     "qwen-chat-1.5b": ModelSpec(
-        key="qwen-chat-1.5b", display_name="Qwen2.5 1.5B Instruct",
+        key="qwen-chat-1.5b", display_name="⭐ Qwen2.5 1.5B — Smart Chat",
         category=Category.CHAT, repo_id="Qwen/Qwen2.5-1.5B-Instruct",
         license="Apache-2.0", dependencies=["transformers", "torch", "accelerate"],
-        download_size_mb=3000, cpu_compatibility="slow",
-        memory_notes="~4-6 GB RAM in float32", languages=["en", "zh", "hi"],
-        status=ModelStatus.UNTESTED,
+        download_size_mb=3100, cpu_compatibility="slow",
+        memory_notes="~3-4 GB RAM (int8 dynamic). Jawab slow par samajhdar.",
+        languages=["en", "hi"],
     ),
-    # ---------- Vision ----------
-    "qwen-vl-3b": ModelSpec(
-        key="qwen-vl-3b", display_name="Qwen2.5-VL 3B Instruct",
-        category=Category.VISION, repo_id="Qwen/Qwen2.5-VL-3B-Instruct",
+    "hf-api-chat": ModelSpec(
+        key="hf-api-chat", display_name="☁️ HF API — Qwen2.5 7B (Online, Fast)",
+        category=Category.CHAT, repo_id="Qwen/Qwen2.5-7B-Instruct",
+        license="Apache-2.0", dependencies=["huggingface_hub"],
+        download_size_mb=0, cpu_compatibility="excellent",
+        memory_notes="Download 0 MB. Hugging Face server par chalta hai — CPU free.",
+        languages=["en", "hi"],
+        notes="GitHub secret HF_TOKEN zaroori hai. Internet chahiye; local models se tez aur smart.",
+    ),
+    # ================= VISION =================
+    "moondream2": ModelSpec(
+        key="moondream2", display_name="⭐ Moondream2 — Fast Vision",
+        category=Category.VISION, repo_id="vikhyatk/moondream2",
         license="Apache-2.0",
-        dependencies=["transformers", "qwen-vl-utils", "torch", "torchvision", "accelerate"],
-        download_size_mb=7000, cpu_compatibility="very_slow",
-        memory_notes="~8-10 GB RAM in float32", languages=["en", "zh"],
-        status=ModelStatus.UNTESTED, experimental=True,
+        dependencies=["transformers", "torch", "timm", "einops"],
+        download_size_mb=3800, cpu_compatibility="good",
+        memory_notes="~4-5 GB RAM float32. Photo ka jawab ~10-40s me.",
+        languages=["en"],
+        notes="Photo + sawal bhejo. English me jawab deta hai.",
     ),
-    # ---------- Voice Cloning ----------
-    "openvoice-v2": ModelSpec(
-        key="openvoice-v2", display_name="OpenVoice V2",
-        category=Category.VOICE_CLONING, repo_id="myshell-ai/OpenVoiceV2",
-        license="MIT (Verify checkpoints)",
-        dependencies=["openvoice", "melo-tts", "torch", "soundfile", "librosa"],
-        download_size_mb=2500, cpu_compatibility="slow",
-        memory_notes="Slower than real-time on CPU", languages=["en"],
-        status=ModelStatus.NEEDS_VERIFICATION, experimental=True,
+    "smolvlm2": ModelSpec(
+        key="smolvlm2", display_name="SmolVLM2 2.2B — Quality Vision 🐌",
+        category=Category.VISION, repo_id="HuggingFaceTB/SmolVLM2-2.2B-Instruct",
+        license="Apache-2.0",
+        dependencies=["transformers", "torch", "accelerate"],
+        download_size_mb=4600, cpu_compatibility="slow",
+        memory_notes="~5-6 GB RAM float32. Moondream se slow, jawab zyada detailed.",
+        languages=["en"],
+        experimental=True,
+    ),
+    # ================= VOICE CLONING =================
+    "xtts-v2": ModelSpec(
+        key="xtts-v2", display_name="⭐ XTTS v2 — Voice Cloning (HI + EN)",
+        category=Category.VOICE_CLONING, repo_id="coqui/XTTS-v2",
+        license="CPML (Non-commercial only)",
+        dependencies=["coqui-tts", "torch", "soundfile"],
+        download_size_mb=1900, cpu_compatibility="slow",
+        memory_notes="~4 GB RAM. 6 sec sample se clone; CPU par ek line ko ~30-90s lag sakte hain.",
+        languages=["hi", "en"],
+        experimental=True,
+        notes="requirements.txt me coqui-tts wali line uncomment karke install karo. "
+              "Text se pehle `hi:` ya `en:` lagao language ke liye.",
     ),
 }
 
@@ -218,7 +322,7 @@ def selectable(cat):
 
 
 def _write_wav(path, samples, rate):
-    clipped = np.clip(samples, -1.0, 1.0)
+    clipped = np.clip(np.asarray(samples, dtype=np.float32), -1.0, 1.0)
     pcm = (clipped * 32767).astype(np.int16)
     path.parent.mkdir(parents=True, exist_ok=True)
     with wave.open(str(path), "wb") as w:
@@ -239,6 +343,24 @@ def _verify_wav(path, min_sec=0.3):
     if duration < min_sec:
         raise ModelError(f"Audio too short: {duration:.2f}s")
     return duration
+
+
+def _download(url, dest: Path):
+    """Simple resumable-enough download with a browser UA (GitHub/HF CDN)."""
+    import urllib.request
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    if dest.exists() and dest.stat().st_size > 1024:
+        return dest
+    req = urllib.request.Request(url, headers={"User-Agent": "cpu-bot/1.0"})
+    tmp = dest.with_suffix(dest.suffix + ".part")
+    with urllib.request.urlopen(req, timeout=600) as resp, open(tmp, "wb") as fh:
+        while True:
+            chunk = resp.read(1 << 20)
+            if not chunk:
+                break
+            fh.write(chunk)
+    tmp.replace(dest)
+    return dest
 
 
 _LOAD_LOCK = threading.Lock()
@@ -290,462 +412,3 @@ class ModelManager:
             self._active_key = key
             self._active = instance
             return instance
-
-
-# ============================================================
-# Piper Backend
-# ============================================================
-class PiperBackend:
-    def __init__(self, settings, spec):
-        self.settings = settings
-        self.spec = spec
-        self._voice_dir = None
-        self._piper = None
-        self._model_path = None
-
-    def load(self):
-        try:
-            import piper
-            import onnxruntime
-        except ImportError as exc:
-            raise DependencyMissing(
-                "piper-tts and onnxruntime are required. "
-                "Run: pip install piper-tts onnxruntime"
-            ) from exc
-        self._piper = piper
-        self._voice_dir = Path(self.settings.data_dir) / "piper_voices"
-        self._voice_dir.mkdir(parents=True, exist_ok=True)
-        voice_name = "hi_IN-rohan-medium" if "rohan" in self.spec.key else "hi_IN-priyamvada-medium"
-        model_path = self._voice_dir / f"{voice_name}.onnx"
-        
-        if not model_path.exists():
-            self._download_voice(voice_name)
-        self._model_path = model_path
-
-    def _download_voice(self, voice_name):
-        import urllib.request
-        base_url = "https://huggingface.co/rhasspy/piper-voices/resolve/main/hi/hi_IN/{}/medium/{}.onnx"
-        url = base_url.format(voice_name, voice_name)
-        json_url = url + ".json"
-        model_path = self._voice_dir / f"{voice_name}.onnx"
-        json_path = self._voice_dir / f"{voice_name}.onnx.json"
-        urllib.request.urlretrieve(url, model_path)
-        urllib.request.urlretrieve(json_url, json_path)
-
-    def unload(self):
-        self._piper = None
-        self._model_path = None
-
-    def synthesize(self, text, output_path, language="hi", voice=None, speed=1.0, description=None):
-        if self._piper is None or self._model_path is None:
-            raise ModelError("Piper not loaded")
-        cleaned = text.strip()
-        if not cleaned:
-            raise ValidationError("Text is empty")
-        started = time.monotonic()
-        
-        cmd = [
-            "piper",
-            "--model", str(self._model_path),
-            "--output_file", str(output_path),
-        ]
-        try:
-            proc = subprocess.run(
-                cmd,
-                input=cleaned.encode("utf-8"),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                timeout=120,
-                check=True,
-            )
-        except FileNotFoundError:
-            voice_obj = self._piper.PiperVoice.load(str(self._model_path))
-            with wave.open(str(output_path), "wb") as wav:
-                voice_obj.synthesize(cleaned, wav)
-        except subprocess.CalledProcessError as exc:
-            raise ModelError(f"Piper failed: {exc.stderr.decode(errors='replace')[:300]}")
-            
-        duration = _verify_wav(output_path)
-        return {
-            "path": output_path,
-            "duration": duration,
-            "language": "hi",
-            "voice": self.spec.key,
-            "elapsed": time.monotonic() - started,
-            "sample_rate": 22050,
-        }
-
-
-# ============================================================
-# Parler-TTS Backend
-# ============================================================
-class ParlerBackend:
-    def __init__(self, settings, spec):
-        self.settings = settings
-        self.spec = spec
-        self._model = None
-        self._tokenizer = None
-        self._torch = None
-
-    def load(self):
-        try:
-            import torch
-            from transformers import AutoTokenizer
-        except ImportError as exc:
-            raise DependencyMissing("transformers and torch are required for Parler-TTS.") from exc
-        torch.set_num_threads(self.settings.cpu_threads)
-        try:
-            self._tokenizer = AutoTokenizer.from_pretrained(
-                self.spec.repo_id, token=self.settings.hf_token)
-            try:
-                from parler_tts import ParlerTTSForConditionalGeneration
-                self._model = ParlerTTSForConditionalGeneration.from_pretrained(
-                    self.spec.repo_id, token=self.settings.hf_token, torch_dtype=torch.float32
-                ).to("cpu").eval()
-            except ImportError:
-                raise DependencyMissing("parler-tts package required. Run: pip install parler-tts")
-            self._torch = torch
-        except Exception as exc:
-            raise ModelError(f"Parler load failed: {exc}") from exc
-
-    def unload(self):
-        self._model = None
-        self._tokenizer = None
-        self._torch = None
-
-    def synthesize(self, text, output_path, language="hi", voice=None, speed=1.0, description=None):
-        if self._model is None or self._tokenizer is None:
-            raise ModelError("Parler not loaded")
-        cleaned = text.strip()
-        if not cleaned:
-            raise ValidationError("Text is empty")
-        description = description or "A clear Hindi voice, moderate pace, no background noise."
-        started = time.monotonic()
-        try:
-            inputs = self._tokenizer(cleaned, return_tensors="pt")
-            description_ids = self._tokenizer(description, return_tensors="pt")
-            with self._torch.inference_mode():
-                generation = self._model.generate(
-                    input_ids=inputs.input_ids,
-                    attention_mask=inputs.attention_mask,
-                    prompt_input_ids=description_ids.input_ids,
-                    prompt_attention_mask=description_ids.attention_mask,
-                )
-            audio = generation.cpu().numpy().squeeze()
-        except Exception as exc:
-            raise ModelError(f"Parler inference failed: {exc}") from exc
-            
-        _write_wav(output_path, audio, 44100)
-        duration = _verify_wav(output_path)
-        return {
-            "path": output_path, "duration": duration, "language": "hi",
-            "voice": "parler", "elapsed": time.monotonic() - started, "sample_rate": 44100,
-        }
-
-
-# ============================================================
-# VoxCPM Backend
-# ============================================================
-class VoxCPMBackend:
-    def __init__(self, settings, spec):
-        self.settings = settings
-        self.spec = spec
-        self._model = None
-        self._sf = None
-
-    def load(self):
-        try:
-            from voxcpm import VoxCPM
-            import soundfile as sf
-        except ImportError as exc:
-            raise DependencyMissing("voxcpm and soundfile required. Run: pip install voxcpm soundfile") from exc
-        try:
-            self._model = VoxCPM.from_pretrained(self.spec.repo_id, device="cpu", optimize=False)
-            self._sf = sf
-        except Exception as exc:
-            raise ModelError(f"VoxCPM load failed: {exc}") from exc
-
-    def unload(self):
-        self._model = None
-        self._sf = None
-
-    def synthesize(self, text, output_path, language="hi", voice=None, speed=1.0, description=None):
-        if self._model is None:
-            raise ModelError("VoxCPM not loaded")
-        cleaned = text.strip()
-        if not cleaned:
-            raise ValidationError("Text is empty")
-        started = time.monotonic()
-        try:
-            audio = self._model.generate(text=cleaned, language="hi", max_length=500)
-            self._sf.write(str(output_path), audio, 48000)
-        except Exception as exc:
-            raise ModelError(f"VoxCPM inference failed: {exc}") from exc
-            
-        duration = _verify_wav(output_path)
-        return {
-            "path": output_path, "duration": duration, "language": "hi",
-            "voice": "voxcpm2", "elapsed": time.monotonic() - started, "sample_rate": 48000,
-        }
-
-
-# ============================================================
-# Vexyl Backend (External API)
-# ============================================================
-class VexylBackend:
-    def __init__(self, settings, spec):
-        self.settings = settings
-        self.spec = spec
-        self._base_url = None
-
-    def load(self):
-        import os
-        self._base_url = os.environ.get("VEXYL_TTS_URL", "").rstrip("/")
-        if not self._base_url:
-            raise ModelError("VEXYL_TTS_URL env var not set.")
-
-    def unload(self):
-        self._base_url = None
-
-    def synthesize(self, text, output_path, language="hi", voice=None, speed=1.0, description=None):
-        if not self._base_url:
-            raise ModelError("VEXYL base URL not configured")
-        import requests
-        cleaned = text.strip()
-        if not cleaned:
-            raise ValidationError("Text is empty")
-        started = time.monotonic()
-        payload = {"text": cleaned, "language": "hi", "speaker": voice or "default"}
-        try:
-            resp = requests.post(f"{self._base_url}/synthesize", json=payload, timeout=120)
-            resp.raise_for_status()
-            output_path.write_bytes(resp.content)
-        except Exception as exc:
-            raise ModelError(f"VEXYL request failed: {exc}") from exc
-            
-        duration = _verify_wav(output_path)
-        return {
-            "path": output_path, "duration": duration, "language": "hi",
-            "voice": "vexyl", "elapsed": time.monotonic() - started, "sample_rate": 44100,
-        }
-
-
-# ============================================================
-# Chat Backend
-# ============================================================
-class ChatBackend:
-    def __init__(self, settings, spec):
-        self.settings = settings
-        self.spec = spec
-        self._model = None
-        self._tokenizer = None
-        self._torch = None
-
-    def load(self):
-        try:
-            import torch
-            from transformers import AutoModelForCausalLM, AutoTokenizer
-        except ImportError as exc:
-            raise DependencyMissing(f"transformers/torch missing ({exc})") from exc
-        torch.set_num_threads(self.settings.cpu_threads)
-        try:
-            self._tokenizer = AutoTokenizer.from_pretrained(self.spec.repo_id, trust_remote_code=False)
-            self._model = AutoModelForCausalLM.from_pretrained(
-                self.spec.repo_id, torch_dtype=torch.float32, low_cpu_mem_usage=True, trust_remote_code=False
-            ).to("cpu").eval()
-            self._torch = torch
-        except Exception as exc:
-            raise ModelError(f"{self.spec.display_name} load failed: {exc}") from exc
-
-    def unload(self):
-        self._model = None
-        self._tokenizer = None
-        self._torch = None
-
-    def generate(self, messages, max_new_tokens=256, temperature=0.7, top_p=0.9):
-        if self._model is None or self._tokenizer is None:
-            raise ModelError("Chat model not loaded")
-        if not messages or messages[-1].get("role") != "user":
-            raise ValidationError("Last message must have role 'user'")
-        if not 16 <= max_new_tokens <= 1024:
-            raise ValidationError("max_new_tokens must be 16-1024")
-        started = time.monotonic()
-        try:
-            prompt = self._tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-            inputs = self._tokenizer(prompt, return_tensors="pt")
-            input_len = int(inputs["input_ids"].shape[-1])
-            with self._torch.inference_mode():
-                output = self._model.generate(
-                    **inputs,
-                    max_new_tokens=max_new_tokens,
-                    do_sample=temperature > 0,
-                    temperature=max(temperature, 0.01),
-                    top_p=top_p,
-                    repetition_penalty=1.08,
-                    pad_token_id=self._tokenizer.eos_token_id,
-                )
-        except Exception as exc:
-            raise ModelError(f"Generation failed: {exc}") from exc
-        generated = output[0][input_len:]
-        text = self._tokenizer.decode(generated, skip_special_tokens=True).strip()
-        if not text:
-            raise ModelError("Model returned an empty response")
-        return {
-            "text": text, "elapsed": time.monotonic() - started,
-            "prompt_tokens": input_len, "completion_tokens": int(generated.shape[-1]),
-        }
-
-
-# ============================================================
-# Vision Backend
-# ============================================================
-class VisionBackend:
-    def __init__(self, settings, spec):
-        self.settings = settings
-        self.spec = spec
-        self._model = None
-        self._processor = None
-        self._torch = None
-
-    def load(self):
-        try:
-            import torch
-            from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
-        except ImportError as exc:
-            raise DependencyMissing(f"Vision deps missing: {exc}") from exc
-        torch.set_num_threads(self.settings.cpu_threads)
-        try:
-            self._processor = AutoProcessor.from_pretrained(self.spec.repo_id)
-            self._model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-                self.spec.repo_id, torch_dtype=torch.float32, low_cpu_mem_usage=True
-            ).to("cpu").eval()
-            self._torch = torch
-        except Exception as exc:
-            raise ModelError(f"{self.spec.display_name} load failed: {exc}") from exc
-
-    def unload(self):
-        self._model = None
-        self._processor = None
-        self._torch = None
-
-    def describe(self, image_path, question, max_new_tokens=128):
-        if self._model is None or self._processor is None:
-            raise ModelError("Vision model not loaded")
-        try:
-            from qwen_vl_utils import process_vision_info
-        except ImportError as exc:
-            raise DependencyMissing("qwen-vl-utils missing") from exc
-        messages = [{
-            "role": "user",
-            "content": [
-                {"type": "image", "image": str(image_path)},
-                {"type": "text", "text": question.strip() or "Describe this image briefly."},
-            ],
-        }]
-        started = time.monotonic()
-        try:
-            prompt = self._processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-            image_inputs, video_inputs = process_vision_info(messages)
-            inputs = self._processor(text=[prompt], images=image_inputs, videos=video_inputs, padding=True, return_tensors="pt")
-            with self._torch.inference_mode():
-                generated = self._model.generate(**inputs, max_new_tokens=max_new_tokens)
-            input_ids = inputs["input_ids"]
-            trimmed = [generated[i][int(input_ids[i].shape[-1]):] for i in range(generated.shape[0])]
-            answer = self._processor.batch_decode(trimmed, skip_special_tokens=True)[0].strip()
-        except Exception as exc:
-            raise ModelError(f"Vision inference failed: {exc}") from exc
-        if not answer:
-            raise ModelError("Vision model returned empty answer")
-        return {"text": answer, "elapsed": time.monotonic() - started}
-
-
-# ============================================================
-# OpenVoice Backend
-# ============================================================
-class OpenVoiceBackend:
-    def __init__(self, settings, spec):
-        self.settings = settings
-        self.spec = spec
-        self._converter = None
-        self._base_tts = None
-        self._se = None
-        self._torch = None
-
-    def load(self):
-        import sys
-        if self.settings.openvoice_repo:
-            repo = Path(self.settings.openvoice_repo).expanduser().resolve()
-            if not repo.exists():
-                raise ModelError("OPENVOICE_REPO_DIR does not exist")
-            if str(repo) not in sys.path:
-                sys.path.insert(0, str(repo))
-        try:
-            import torch
-            from melo.api import TTS as MeloTTS
-            from openvoice import se_extractor
-            from openvoice.api import ToneColorConverter
-        except ImportError as exc:
-            raise DependencyMissing("OpenVoice deps missing.") from exc
-        if not self.settings.openvoice_ckpt:
-            raise ModelError("OPENVOICE_CHECKPOINT_DIR not set.")
-        ckpt = Path(self.settings.openvoice_ckpt).expanduser().resolve()
-        conv_dir = ckpt / "converter"
-        if not (conv_dir / "config.json").exists():
-            raise ModelError(f"OpenVoice converter not found at {conv_dir}")
-        torch.set_num_threads(self.settings.cpu_threads)
-        try:
-            self._converter = ToneColorConverter(str(conv_dir / "config.json"), device="cpu")
-            self._converter.load_ckpt(str(conv_dir / "checkpoint.pth"))
-            self._base_tts = MeloTTS(language="EN", device="cpu")
-            self._se = se_extractor
-            self._torch = torch
-        except Exception as exc:
-            raise ModelError(f"OpenVoice load failed: {exc}") from exc
-
-    def unload(self):
-        self._converter = None
-        self._base_tts = None
-        self._se = None
-        self._torch = None
-
-    def clone(self, text, reference_wav, output_path, language="EN"):
-        if language != "EN":
-            raise ValidationError("Only English base speaker is enabled")
-        cleaned = text.strip()
-        if not cleaned:
-            raise ValidationError("Text is empty")
-        if not Path(reference_wav).exists():
-            raise ValidationError("Reference audio missing")
-        started = time.monotonic()
-        temp_base = Path(str(output_path) + ".base.wav")
-        try:
-            target_se, _ = self._se.get_se(str(reference_wav), self._converter, vad=True)
-            speakers = self._base_tts.hps.data.spk2id
-            spk = speakers.get("EN-Default") or next(iter(speakers.values()))
-            self._base_tts.tts_to_file(cleaned, spk, str(temp_base), speed=1.0)
-            source_se, _ = self._se.get_se(str(temp_base), self._converter, vad=True)
-            self._converter.convert(
-                audio_src_path=str(temp_base),
-                src_se=source_se, tgt_se=target_se,
-                output_path=str(output_path), message="@cpu-bot",
-            )
-        except Exception as exc:
-            raise ModelError(f"Voice cloning failed: {exc}") from exc
-        finally:
-            temp_base.unlink(missing_ok=True)
-        if not Path(output_path).exists() or Path(output_path).stat().st_size < 1024:
-            raise ModelError("Voice cloning produced no audio")
-        return {"path": Path(output_path), "elapsed": time.monotonic() - started}
-
-
-_FACTORIES = {
-    "piper-hi-rohan": PiperBackend,
-    "piper-hi-priyamvada": PiperBackend,
-    "indic-parler-tts": ParlerBackend,
-    "voxcpm2": VoxCPMBackend,
-    "vexyl-tts": VexylBackend,
-    "qwen-chat-0.5b": ChatBackend,
-    "qwen-chat-1.5b": ChatBackend,
-    "qwen-vl-3b": VisionBackend,
-    "openvoice-v2": OpenVoiceBackend,
-}
